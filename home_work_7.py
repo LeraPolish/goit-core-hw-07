@@ -80,18 +80,32 @@ class AddressBook(UserDict):
             raise KeyError('Name not found')
         del self.data[name]
 
-    def get_upcoming_birthdays(self, days=7):
+    def get_upcoming_birthdays(self):
+        def find_next_weekday(start_date, weekday):
+            days_ahead = weekday - start_date.weekday()
+            if days_ahead <= 0:
+                days_ahead += 7
+            return start_date + timedelta(days=days_ahead)
+
+        def adjust_for_weekend(birthday):
+            if birthday.weekday() >= 5:
+                return find_next_weekday(birthday, 0)
+            return birthday
+
         upcoming_birthdays = []
-        today = date.today()
+        today = datetime.today().date()
+
         for record in self.data.values():
             if record.birthday:
-                birthday_this_year = record.birthday.date.replace(year=today.year)
-                days_until_birthday = (birthday_this_year - today).days
-                if 0 <= days_until_birthday <= days:
-                    upcoming_birthdays.append({
-                        "name": record.name.value,
-                        "congratulation_date": birthday_this_year.strftime("%d.%m.%Y")
-                    })
+                user_birthday = record.birthday.date
+                next_birthday = user_birthday.replace(year=today.year)
+                if next_birthday < today:
+                    next_birthday = user_birthday.replace(year=today.year + 1)
+
+                if 0 <= (next_birthday - today).days <= 7:
+                    next_birthday = adjust_for_weekend(next_birthday)
+                    upcoming_birthdays.append({"name": record.name.value, "congratulation_date": next_birthday.strftime("%d.%m.%Y")})
+
         return upcoming_birthdays
 
 def input_error(func):
@@ -156,8 +170,10 @@ def show_phone(args, book):
     name = args[0]
     record = book.find(name)
     if record and record.phones:
-        return f"{name}'s phone number is {record.phones[0].value}"
-    return f"No phone number for {name} found."
+        phones = '; '.join(phone.value for phone in record.phones)
+        return f"{name}'s phone numbers are: {phones}"
+    return f"No phone numbers for {name} found."
+
 
 @input_error
 def show_all(book):
